@@ -1,1 +1,6 @@
 default: styles/application.scss
+tangerineui: styles/tangerineui.scss
+tangerineui-purple: styles/tangerineui-purple.scss
+mastodon-bird-contrast: styles/mastodon-bird-ui-contrast.scss
+mastodon-bird-light: styles/mastodon-bird-ui-light.scss
+mastodon-bird-dark: styles/mastodon-bird-ui-dark.scss
