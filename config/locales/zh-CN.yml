@@ -2144,10 +2144,10 @@ zh-CN:
     title: "%{domain} 更新了服务条款"
   themes:
     default: Mastodon
-    tangerineui: Tangerine/橘子
-    tangerineui-purple: Tangerine/紫色
-    tangerineui-cherry: Tangerine/樱桃
-    tangerineui-lagoon: Tangerine/泻湖
+    tangerineui: Tangerine UI
+    tangerineui-purple: Tangerine UI （经典紫色）
+    tangerineui-cherry: Tangerine UI （粉红樱桃）
+    tangerineui-lagoon: Tangerine UI （清新绿松）
     mastodon-bird-contrast: Mastodon Bird/仿推特（高对比度）
     mastodon-bird-light: Mastodon Bird/仿推特（亮色主题）
     mastodon-bird-dark: Mastodon Bird/仿推特（暗色主题）
