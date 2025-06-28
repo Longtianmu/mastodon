@@ -176,7 +176,7 @@ gl:
         approve_appeal: Aprobar apelación
         approve_user: Aprobar Usuaria
         assigned_to_self_report: Asignar denuncia
-        change_email_user: Cambiar o correo da Usuaria
+        change_email_user: Cambiar o correo da usuaria
         change_role_user: Cambiar Rol da Usuaria
         confirm_user: Confirmar usuaria
         create_account_warning: Crear aviso
@@ -263,10 +263,10 @@ gl:
         destroy_user_role_html: "%{name} eliminou o rol %{target}"
         disable_2fa_user_html: "%{name} desactivou o requerimento do segundo factor para a usuaria %{target}"
         disable_custom_emoji_html: "%{name} desactivou o emoji %{target}"
-        disable_sign_in_token_auth_user_html: "%{name} desactivou a autenticación por token no email para %{target}"
+        disable_sign_in_token_auth_user_html: "%{name} desactivou a autenticación por token no correo para %{target}"
         disable_user_html: "%{name} desactivou as credenciais para a usuaria %{target}"
         enable_custom_emoji_html: "%{name} activou o emoji %{target}"
-        enable_sign_in_token_auth_user_html: "%{name} activou a autenticación con token no email para %{target}"
+        enable_sign_in_token_auth_user_html: "%{name} activou a autenticación con token no correo para %{target}"
         enable_user_html: "%{name} activou as credenciais para a usuaria %{target}"
         memorialize_account_html: "%{name} convertiu a conta de %{target} nunha páxina para o recordo"
         promote_user_html: "%{name} promocionou a usuaria %{target}"
@@ -1252,7 +1252,7 @@ gl:
   errors:
     '400': A solicitude que enviou non é válida ou ten formato incorrecto.
     '403': Non ten permiso para ver esta páxina.
-    '404': A páxina que está a buscar non está aquí.
+    '404': A páxina que buscas non está aquí.
     '406': Esta páxina non está dispoñible no formato solicitado.
     '410': A páxina que estaba a buscar xa non existe.
     '422':
@@ -1433,7 +1433,7 @@ gl:
     table:
       expires_at: Caduca
       uses: Usos
-    title: Convidar xente
+    title: Convidar a persoas
   lists:
     errors:
       limit: Xa acadaches o número máximo de listas
@@ -1790,9 +1790,9 @@ gl:
       '63113904': 2 anos
       '7889238': 3 meses
     min_age_label: Límite temporal
-    min_favs: Manter as publicacións favorecidas polo menos
+    min_favs: Manter publicacións favorecidas polo menos
     min_favs_hint: Non elimina ningunha das túas publicacións que recibiron alomenos esta cantidade de favorecementos. Deixa en branco para eliminar publicacións independentemente do número de favorecementos
-    min_reblogs: Manter publicacións promovidas máis de
+    min_reblogs: Manter publicacións promovidas polo menos
     min_reblogs_hint: Non elimina ningunha das túas publicacións se foron promovidas máis deste número de veces. Deixa en branco para eliminar publicacións independentemente do seu número de promocións
   stream_entries:
     sensitive_content: Contido sensible

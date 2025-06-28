@@ -140,7 +140,7 @@ ko:
         position: 특정 상황에서 충돌이 발생할 경우 더 높은 역할이 충돌을 해결합니다. 특정 작업은 우선순위가 낮은 역할에 대해서만 수행될 수 있습니다
       webhook:
         events: 전송할 이벤트를 선택하세요
-        template: 원하는 JSON 페이로드를 변수와 함께 작성하거나, 그냥 냅둬서 기본 JSON을 사용할 수 있습니다.
+        template: 원하는 JSON 페이로드를 변수와 함께 작성하거나, 그대로 두어 기본 JSON을 사용할 수 있습니다.
         url: 이벤트가 어디로 전송될 지
     labels:
       account:
@@ -208,11 +208,11 @@ ko:
         setting_aggregate_reblogs: 타임라인의 부스트를 그룹화
         setting_always_send_emails: 항상 이메일 알림 보내기
         setting_auto_play_gif: 애니메이션 GIF를 자동 재생
-        setting_boost_modal: 부스트 전 확인 창을 표시
+        setting_boost_modal: 부스트 전 확인창을 띄웁니다
         setting_default_language: 게시물 언어
         setting_default_privacy: 게시물 프라이버시
         setting_default_sensitive: 미디어를 언제나 민감한 콘텐츠로 설정
-        setting_delete_modal: 게시물 삭제 전 확인 창을 표시
+        setting_delete_modal: 게시물 삭제 전 확인창을 띄웁니다
         setting_disable_hover_cards: 호버시 프로필 미리보기를 비활성화
         setting_disable_swiping: 스와이프 모션 비활성화
         setting_display_media: 미디어 표시
