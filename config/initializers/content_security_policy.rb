@@ -13,8 +13,7 @@ assets_host = policy.assets_host
 media_hosts = policy.media_hosts
 
 
-cf_beacon       = "https://static.cloudflareinsights.com"
-cf_rocketloader = "https://ajax.cloudflare.com"
+cf_beacon   = "https://static.cloudflareinsights.com"
 
 
 Rails.application.config.content_security_policy do |p|
