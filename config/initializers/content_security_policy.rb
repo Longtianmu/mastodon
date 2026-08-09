@@ -12,9 +12,7 @@ policy = ContentSecurityPolicy.new
 assets_host = policy.assets_host
 media_hosts = policy.media_hosts
 
-
-cf_beacon   = "https://static.cloudflareinsights.com"
-
+cf_beacon = 'https://static.cloudflareinsights.com'
 
 Rails.application.config.content_security_policy do |p|
   p.base_uri        :none
@@ -44,7 +42,7 @@ Rails.application.config.content_security_policy do |p|
     p.style_src   :self, assets_host, :unsafe_inline
   else
     p.connect_src :self, :data, :blob, *media_hosts, cf_beacon, Rails.configuration.x.streaming_api_base_url
-    p.script_src  :self, assets_host,  cf_beacon, "'wasm-unsafe-eval'"
+    p.script_src  :self, assets_host, cf_beacon, "'wasm-unsafe-eval'"
     p.frame_src   :self, :https
     p.style_src   :self, assets_host
   end
