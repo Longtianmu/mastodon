@@ -374,8 +374,9 @@ Database path: $FROM_VERSION -> 4.4 -> 4.5 -> 4.6 -> $TARGET
      then run post-deployment migrations.
   7. Optionally refresh the Elasticsearch/OpenSearch account mapping.
 
-Important: Mastodon 4.6 changed the theming system. The custom theme entrypoints
-in this branch have been migrated to Sass modules, but visual QA is still advised.
+Important: Mastodon 4.6 changed the theming system. This branch includes
+Mastodon Bird UI 4.0.0 and Tangerine Neue 2.6.5, both intended for Mastodon 4.6+.
+Their Sass entrypoints are validated before deployment, but visual QA is still advised.
 The optional email-subscriptions feature may increase outbound email costs; set
 DISABLE_EMAIL_SUBSCRIPTIONS=true if your operators should not enable it.
 

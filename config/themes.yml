@@ -3,6 +3,5 @@ tangerineui: styles/tangerineui.scss
 tangerineui-purple: styles/tangerineui-purple.scss
 tangerineui-cherry: styles/tangerineui-cherry.scss
 tangerineui-lagoon: styles/tangerineui-lagoon.scss
-mastodon-bird-contrast: styles/mastodon-bird-ui-contrast.scss
-mastodon-bird-light: styles/mastodon-bird-ui-light.scss
-mastodon-bird-dark: styles/mastodon-bird-ui-dark.scss
+tangerineui-granite: styles/tangerineui-granite.scss
+mastodon-bird-ui-auto: styles/mastodon-bird-ui-auto.scss
