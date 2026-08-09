@@ -1,11 +1,12 @@
 #!/usr/bin/env bash
-# Update a customized Mastodon checkout while retaining commits made after the
-# current upstream release tag. Run --plan first on production.
+# Deploy versioned custom Mastodon branches under mod/*.
+# Run --plan first on production.
 
 set -Eeuo pipefail
 
-REMOTE="upstream"
+REMOTE="origin"
 TARGET=""
+MOD_BRANCH_PREFIX="${MASTODON_MOD_BRANCH_PREFIX:-mod/mod2-v}"
 FROM_VERSION="${MASTODON_FROM_VERSION:-v4.3.8}"
 DEPLOY="source"
 BACKUP_DIR=""
@@ -17,21 +18,25 @@ SKIP_DB_BACKUP=0
 STASH_REF=""
 DOCKER_OVERRIDE=""
 BACKUP_BRANCH=""
+TARGET_VERSION=""
+TARGET_BRANCH=""
+SOURCE_REF=""
 
 usage() {
   cat <<'EOF'
 Usage: ./update-mastodon.sh [options]
 
-Safely rebases local Mastodon customizations onto the newest stable release.
+Safely switches to the newest versioned custom branch under mod/*.
 By default it updates source code only and does not touch the database or
-running services.
+running services. No official "upstream" remote is required.
 
 Options:
   --plan                  Show the detected versions and migration plan only
-  --target vX.Y.Z         Update to this stable release instead of the newest
-  --from-version vX.Y.Z   Deployed/database version (default: v4.3.8)
-  --remote NAME           Official Mastodon remote (default: upstream)
-  --no-fetch              Use already-fetched tags
+  --target X.Y.Z          Deploy mod/mod2-vX.Y.Z instead of the newest branch
+  --target mod/NAME       Deploy this exact custom branch
+  --from-version X.Y.Z    Deployed/database version (default: 4.3.8)
+  --remote NAME           Remote containing mod/* branches (default: origin)
+  --no-fetch              Use existing local/remote-tracking mod/* branches
   --deploy source         Update source only (default)
   --deploy native         Also update a systemd/non-Docker installation
   --deploy docker         Also build custom images and update Docker Compose
@@ -43,7 +48,7 @@ Options:
 
 Examples:
   ./update-mastodon.sh --plan
-  ./update-mastodon.sh --yes
+  ./update-mastodon.sh --target 4.6.5 --yes
   ./update-mastodon.sh --deploy native --with-search
   ./update-mastodon.sh --deploy docker --backup-dir /srv/backups/mastodon
 
@@ -51,6 +56,8 @@ Environment overrides for native deployments:
   MASTODON_ENV_FILE       Path to .env.production
   MASTODON_RESTART_CMD    Command run between pre/post migrations
   MASTODON_YARN_CMD       Yarn command (default: yarn)
+  MASTODON_MOD_BRANCH_PREFIX
+                          Version-to-branch prefix (default: mod/mod2-v)
 EOF
 }
 
@@ -90,15 +97,55 @@ version_at_least() {
   [[ "$(printf '%s\n%s\n' "$minimum" "$actual" | sort -V | head -n 1)" == "$minimum" ]]
 }
 
-is_stable_tag() {
-  [[ "$1" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]
+is_release_version() {
+  [[ "$1" =~ ^v?[0-9]+\.[0-9]+\.[0-9]+$ ]]
 }
 
-latest_stable_tag() {
-  git tag --list 'v[0-9]*' \
-    | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' \
-    | sort -V \
-    | tail -n 1
+normalize_version() {
+  printf '%s' "${1#v}"
+}
+
+extract_release_version() {
+  local name="$1"
+  if [[ "$name" =~ v?([0-9]+\.[0-9]+\.[0-9]+)$ ]]; then
+    printf '%s' "${BASH_REMATCH[1]}"
+  else
+    return 1
+  fi
+}
+
+list_modified_branches() {
+  local ref branch version
+
+  while IFS= read -r ref; do
+    branch="${ref#"$REMOTE/"}"
+    version="$(extract_release_version "$branch")" || continue
+    printf '%s\t%s\n' "$version" "$branch"
+  done < <(git for-each-ref --format='%(refname:short)' "refs/remotes/$REMOTE/mod/*")
+
+  while IFS= read -r ref; do
+    version="$(extract_release_version "$ref")" || continue
+    printf '%s\t%s\n' "$version" "$ref"
+  done < <(git for-each-ref --format='%(refname:short)' 'refs/heads/mod/*')
+}
+
+latest_modified_branch() {
+  list_modified_branches \
+    | sort -u -t $'\t' -k1,1V -k2,2 \
+    | tail -n 1 \
+    | cut -f2-
+}
+
+resolve_modified_ref() {
+  local branch="$1"
+
+  if git show-ref --verify --quiet "refs/remotes/$REMOTE/$branch"; then
+    printf '%s' "$REMOTE/$branch"
+  elif git show-ref --verify --quiet "refs/heads/$branch"; then
+    printf '%s' "$branch"
+  else
+    return 1
+  fi
 }
 
 read_env_value() {
@@ -136,6 +183,7 @@ EOF
     require_cmd vips
     require_cmd ffmpeg
     require_cmd pg_dump
+    require_cmd pg_restore
 
     local ruby_version node_version
     ruby_version="$(ruby -e 'print RUBY_VERSION')"
@@ -155,7 +203,9 @@ create_git_backup() {
   local timestamp
 
   timestamp="$(date -u +%Y%m%dT%H%M%SZ)"
-  BACKUP_BRANCH="backup/${branch//\//-}-pre-${target#v}-${timestamp}"
+  branch="${branch//\//-}"
+  branch="${branch//[^a-zA-Z0-9._-]/-}"
+  BACKUP_BRANCH="backup/${branch}-pre-${target#v}-${timestamp}"
   run git branch "$BACKUP_BRANCH" HEAD
 }
 
@@ -179,6 +229,33 @@ restore_worktree() {
   fi
 }
 
+checkout_modified_release() {
+  local current_branch current_commit source_commit
+
+  current_branch="$(git symbolic-ref --quiet --short HEAD 2>/dev/null || true)"
+  current_commit="$(git rev-parse HEAD)"
+  source_commit="$(git rev-parse "$SOURCE_REF^{commit}")"
+
+  if [[ "$current_branch" == "$TARGET_BRANCH" && "$current_commit" == "$source_commit" ]]; then
+    log "Already on $TARGET_BRANCH at the requested revision"
+    return 0
+  fi
+
+  stash_worktree
+  create_git_backup "${current_branch:-detached-$(git rev-parse --short HEAD)}" "$TARGET_VERSION"
+
+  if git show-ref --verify --quiet "refs/heads/$TARGET_BRANCH"; then
+    run git switch "$TARGET_BRANCH"
+    if [[ "$SOURCE_REF" != "$TARGET_BRANCH" ]]; then
+      run git merge --ff-only "$SOURCE_REF"
+    fi
+  else
+    run git switch --create "$TARGET_BRANCH" "$SOURCE_REF"
+  fi
+
+  restore_worktree
+}
+
 validate_custom_themes() {
   local theme path missing=0
   while IFS=':' read -r theme path; do
@@ -196,7 +273,7 @@ validate_custom_themes() {
 native_backup() {
   (( SKIP_DB_BACKUP )) && return 0
 
-  local env_file db_host db_port db_name db_user db_pass backup_file
+  local env_file db_host db_port db_name db_user db_pass db_sslmode backup_file
   env_file="${MASTODON_ENV_FILE:-.env.production}"
   [[ -f "$env_file" ]] || die "Native database backup needs $env_file or MASTODON_ENV_FILE"
 
@@ -205,16 +282,20 @@ native_backup() {
   db_name="$(read_env_value DB_NAME "$env_file")"
   db_user="$(read_env_value DB_USER "$env_file")"
   db_pass="$(read_env_value DB_PASS "$env_file")"
+  db_sslmode="$(read_env_value DB_SSLMODE "$env_file")"
   db_host="${db_host:-localhost}"
   db_port="${db_port:-5432}"
   db_name="${db_name:-mastodon_production}"
   db_user="${db_user:-mastodon}"
+  db_sslmode="${db_sslmode:-prefer}"
 
   mkdir -p "$BACKUP_DIR"
-  backup_file="$BACKUP_DIR/mastodon-${FROM_VERSION#v}-to-${TARGET#v}-$(date -u +%Y%m%dT%H%M%SZ).dump"
+  backup_file="$BACKUP_DIR/mastodon-$FROM_VERSION-to-$TARGET_VERSION-$(date -u +%Y%m%dT%H%M%SZ).dump"
   log "Backing up PostgreSQL to $backup_file"
-  PGPASSWORD="$db_pass" pg_dump -Fc -h "$db_host" -p "$db_port" -U "$db_user" "$db_name" > "$backup_file"
+  PGPASSWORD="$db_pass" PGSSLMODE="$db_sslmode" \
+    pg_dump -Fc -h "$db_host" -p "$db_port" -U "$db_user" "$db_name" > "$backup_file"
   [[ -s "$backup_file" ]] || die "Database backup is empty"
+  pg_restore --list "$backup_file" >/dev/null || die "Database backup could not be read by pg_restore"
 }
 
 native_deploy() {
@@ -251,15 +332,15 @@ make_docker_override() {
   cat > "$DOCKER_OVERRIDE" <<EOF
 services:
   web:
-    image: mastodon-custom:${TARGET#v}
+    image: mastodon-custom:$TARGET_VERSION
     build:
       context: "$PWD"
   sidekiq:
-    image: mastodon-custom:${TARGET#v}
+    image: mastodon-custom:$TARGET_VERSION
     build:
       context: "$PWD"
   streaming:
-    image: mastodon-streaming-custom:${TARGET#v}
+    image: mastodon-streaming-custom:$TARGET_VERSION
     build:
       context: "$PWD"
       dockerfile: streaming/Dockerfile
@@ -273,18 +354,35 @@ docker_compose() {
 docker_backup() {
   (( SKIP_DB_BACKUP )) && return 0
 
-  local env_file db_name db_user backup_file
+  local env_file db_host db_port db_name db_user db_pass db_sslmode backup_file
   env_file="${MASTODON_ENV_FILE:-.env.production}"
   [[ -f "$env_file" ]] || die "Docker database backup needs $env_file or MASTODON_ENV_FILE"
+  db_host="$(read_env_value DB_HOST "$env_file")"
+  db_port="$(read_env_value DB_PORT "$env_file")"
   db_name="$(read_env_value DB_NAME "$env_file")"
   db_user="$(read_env_value DB_USER "$env_file")"
+  db_pass="$(read_env_value DB_PASS "$env_file")"
+  db_sslmode="$(read_env_value DB_SSLMODE "$env_file")"
+  db_port="${db_port:-5432}"
   db_name="${db_name:-postgres}"
   db_user="${db_user:-postgres}"
+  db_sslmode="${db_sslmode:-prefer}"
 
   mkdir -p "$BACKUP_DIR"
-  backup_file="$BACKUP_DIR/mastodon-${FROM_VERSION#v}-to-${TARGET#v}-$(date -u +%Y%m%dT%H%M%SZ).dump"
+  backup_file="$BACKUP_DIR/mastodon-$FROM_VERSION-to-$TARGET_VERSION-$(date -u +%Y%m%dT%H%M%SZ).dump"
   log "Backing up PostgreSQL to $backup_file"
-  docker_compose exec -T db pg_dump -Fc -U "$db_user" "$db_name" > "$backup_file"
+
+  if [[ -n "$db_host" && "$db_host" != "db" ]]; then
+    require_cmd pg_dump
+    require_cmd pg_restore
+    PGPASSWORD="$db_pass" PGSSLMODE="$db_sslmode" \
+      pg_dump -Fc -h "$db_host" -p "$db_port" -U "$db_user" "$db_name" > "$backup_file"
+    pg_restore --list "$backup_file" >/dev/null \
+      || die "Database backup could not be read by pg_restore"
+  else
+    docker_compose exec -T db pg_dump -Fc -U "$db_user" "$db_name" > "$backup_file"
+  fi
+
   [[ -s "$backup_file" ]] || die "Database backup is empty"
 }
 
@@ -335,39 +433,52 @@ git rev-parse --is-inside-work-tree >/dev/null 2>&1 || die "Run this script insi
 git rev-parse -q --verify REBASE_HEAD >/dev/null 2>&1 && die "A rebase is already in progress"
 git rev-parse -q --verify MERGE_HEAD >/dev/null 2>&1 && die "A merge is already in progress"
 
-BRANCH="$(git symbolic-ref --quiet --short HEAD)" || die "Check out a branch before updating"
-CURRENT_TAG="$(git describe --tags --abbrev=0 --match 'v[0-9]*' HEAD 2>/dev/null || true)"
-is_stable_tag "$CURRENT_TAG" || die "Cannot identify the current stable release tag"
+BRANCH="$(git symbolic-ref --quiet --short HEAD 2>/dev/null || true)"
+CURRENT_REF="${BRANCH:-detached@$(git rev-parse --short HEAD)}"
 
 if (( DO_FETCH )); then
   git remote get-url "$REMOTE" >/dev/null 2>&1 || die "Git remote '$REMOTE' does not exist"
-  (( PLAN_ONLY )) || run git fetch "$REMOTE" --tags --prune
+  run git fetch "$REMOTE" --prune --tags \
+    "+refs/heads/mod/*:refs/remotes/$REMOTE/mod/*"
 fi
 
 if [[ -z "$TARGET" ]]; then
-  TARGET="$(latest_stable_tag)"
+  TARGET_BRANCH="$(latest_modified_branch)"
+  [[ -n "$TARGET_BRANCH" ]] || die "No versioned mod/* branches found for remote '$REMOTE'"
+  TARGET_VERSION="$(extract_release_version "$TARGET_BRANCH")" \
+    || die "Cannot extract a release version from $TARGET_BRANCH"
+elif is_release_version "$TARGET"; then
+  TARGET_VERSION="$(normalize_version "$TARGET")"
+  TARGET_BRANCH="$MOD_BRANCH_PREFIX$TARGET_VERSION"
+elif [[ "$TARGET" == mod/* ]]; then
+  TARGET_BRANCH="$TARGET"
+  TARGET_VERSION="$(extract_release_version "$TARGET_BRANCH")" \
+    || die "Target branch must end in X.Y.Z or vX.Y.Z"
+else
+  die "Target must be X.Y.Z, vX.Y.Z, or a branch under mod/*"
 fi
-is_stable_tag "$TARGET" || die "Target must look like vX.Y.Z"
-is_stable_tag "$FROM_VERSION" || die "--from-version must look like vX.Y.Z"
-git rev-parse -q --verify "refs/tags/$TARGET^{commit}" >/dev/null || die "Target tag not found: $TARGET"
-[[ "$TARGET" =~ ^v4\.6\.[0-9]+$ ]] \
-  || die "This migration recipe has been reviewed through Mastodon 4.6.x only. Read the new minor/major release notes and update this script before targeting $TARGET."
+is_release_version "$FROM_VERSION" || die "--from-version must look like X.Y.Z or vX.Y.Z"
+FROM_VERSION="$(normalize_version "$FROM_VERSION")"
+SOURCE_REF="$(resolve_modified_ref "$TARGET_BRANCH")" \
+  || die "Modified release branch not found: $TARGET_BRANCH (remote: $REMOTE)"
+[[ "$TARGET_VERSION" =~ ^4\.6\.[0-9]+$ ]] \
+  || die "This migration recipe has been reviewed through Mastodon 4.6.x only. Read the new minor/major release notes and update this script before targeting $TARGET_VERSION."
 
 BACKUP_DIR="${BACKUP_DIR:-$(cd .. && pwd)/mastodon-backups}"
 
 cat <<EOF
-Current branch:     $BRANCH
-Current code base:  $CURRENT_TAG
-Deployed/DB base:   $FROM_VERSION
-Target release:     $TARGET
+Current source:     $CURRENT_REF
+Deployed/DB base:   v$FROM_VERSION
+Target branch:      $TARGET_BRANCH
+Source ref:         $SOURCE_REF
 Deployment mode:    $DEPLOY
 Database backup:    $([[ "$DEPLOY" == source ]] && printf 'not applicable' || { (( SKIP_DB_BACKUP )) && printf 'SKIPPED' || printf '%s' "$BACKUP_DIR"; })
 
-Source rebase:  $CURRENT_TAG -> $TARGET
-Database path: $FROM_VERSION -> 4.4 -> 4.5 -> 4.6 -> $TARGET
+Source switch: $CURRENT_REF -> $TARGET_BRANCH
+Database path: v$FROM_VERSION -> 4.4 -> 4.5 -> 4.6 -> v$TARGET_VERSION
   1. Verify new runtime requirements and REDIS_NAMESPACE removal.
   2. Preserve uncommitted work and create a backup Git branch.
-  3. Rebase customization commits onto $TARGET.
+  3. Switch to the versioned custom branch without rebasing it.
   4. Back up PostgreSQL before any database migration.
   5. Install/build dependencies and compile all assets/themes.
   6. Run pre-deployment migrations, restart every Mastodon process,
@@ -384,7 +495,7 @@ Release notes reviewed by this script:
   https://github.com/mastodon/mastodon/releases/tag/v4.4.0
   https://github.com/mastodon/mastodon/releases/tag/v4.5.0
   https://github.com/mastodon/mastodon/releases/tag/v4.6.0
-  https://github.com/mastodon/mastodon/releases/tag/$TARGET
+  https://github.com/mastodon/mastodon/releases/tag/v$TARGET_VERSION
 EOF
 
 check_release_requirements
@@ -392,23 +503,7 @@ check_release_requirements
 
 confirm
 
-if [[ "$CURRENT_TAG" != "$TARGET" ]]; then
-  git merge-base --is-ancestor "$CURRENT_TAG" "$TARGET" \
-    || die "Official history changed between $CURRENT_TAG and $TARGET. Reconstruct the branch on the target tag instead of forcing a merge."
-
-  stash_worktree
-  create_git_backup "$BRANCH" "$TARGET"
-  log "Rebasing custom commits from $CURRENT_TAG onto $TARGET"
-  if ! git rebase --rebase-merges --onto "$TARGET" "$CURRENT_TAG" "$BRANCH"; then
-    printf 'Rebase stopped on a conflict. Resolve it and run git rebase --continue,\n' >&2
-    printf 'or recover with: git rebase --abort && git switch %s\n' "$BACKUP_BRANCH" >&2
-    [[ -n "$STASH_REF" ]] && printf 'Uncommitted work remains safe in %s\n' "$STASH_REF" >&2
-    exit 1
-  fi
-  restore_worktree
-else
-  log "Source is already based on $TARGET; no rebase needed"
-fi
+checkout_modified_release
 
 validate_custom_themes
 
@@ -418,7 +513,7 @@ case "$DEPLOY" in
   docker) docker_deploy ;;
 esac
 
-log "Update complete: $(git describe --tags --always --dirty)"
+log "Update complete: $TARGET_BRANCH at $(git rev-parse --short HEAD)"
 if [[ "$DEPLOY" == "source" ]]; then
   cat <<'EOF'
 Source-only mode did not migrate a production database or restart services.
