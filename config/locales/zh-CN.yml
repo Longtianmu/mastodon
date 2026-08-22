@@ -2169,6 +2169,12 @@ zh-CN:
     title: "%{domain} 更新了服务条款"
   themes:
     default: Mastodon
+    tangerineui: Tangerine UI
+    tangerineui-purple: Tangerine UI （经典紫色）
+    tangerineui-cherry: Tangerine UI （粉红樱桃）
+    tangerineui-lagoon: Tangerine UI （清新绿松）
+    tangerineui-granite: Tangerine UI （花岗岩）
+    mastodon-bird-ui-auto: Mastodon Bird/仿推特
   time:
     formats:
       default: "%Y年%m月%d日 %H:%M"
