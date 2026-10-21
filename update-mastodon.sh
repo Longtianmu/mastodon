@@ -48,7 +48,7 @@ Options:
 
 Examples:
   ./update-mastodon.sh --plan
-  ./update-mastodon.sh --target 4.7.0 --yes
+  ./update-mastodon.sh --target 4.7.3 --yes
   ./update-mastodon.sh --deploy native --with-search
   ./update-mastodon.sh --deploy docker --backup-dir /srv/backups/mastodon
 
@@ -488,9 +488,9 @@ Mastodon Bird UI 4.0.0 and Tangerine Neue 2.6.5, both intended for Mastodon 4.6+
 Their Sass entrypoints are validated before deployment, but visual QA is still advised.
 The optional email-subscriptions feature may increase outbound email costs; set
 DISABLE_EMAIL_SUBSCRIPTIONS=true if your operators should not enable it.
-Mastodon 4.7 has unusually long post-deployment migrations; large instances may
-need a few hours. Do not interrupt them. Zero-downtime migration is guaranteed
-only when the deployed version is already on Mastodon 4.6.
+When crossing into Mastodon 4.7, post-deployment migrations may take hours on
+large instances. Do not interrupt them. For upgrades from older minor releases,
+zero-downtime migration requires starting on Mastodon 4.6.
 
 Release notes reviewed by this script:
   https://github.com/mastodon/mastodon/releases/tag/v4.4.0
@@ -498,6 +498,9 @@ Release notes reviewed by this script:
   https://github.com/mastodon/mastodon/releases/tag/v4.6.0
   https://github.com/mastodon/mastodon/releases/tag/v4.6.6
   https://github.com/mastodon/mastodon/releases/tag/v4.7.0
+  https://github.com/mastodon/mastodon/releases/tag/v4.7.1
+  https://github.com/mastodon/mastodon/releases/tag/v4.7.2
+  https://github.com/mastodon/mastodon/releases/tag/v4.7.3
   https://github.com/mastodon/mastodon/releases/tag/v$TARGET_VERSION
 EOF
 
