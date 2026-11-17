@@ -48,7 +48,7 @@ Options:
 
 Examples:
   ./update-mastodon.sh --plan
-  ./update-mastodon.sh --target 4.7.3 --yes
+  ./update-mastodon.sh --target 4.7.5 --yes
   ./update-mastodon.sh --deploy native --with-search
   ./update-mastodon.sh --deploy docker --backup-dir /srv/backups/mastodon
 
@@ -501,8 +501,17 @@ Release notes reviewed by this script:
   https://github.com/mastodon/mastodon/releases/tag/v4.7.1
   https://github.com/mastodon/mastodon/releases/tag/v4.7.2
   https://github.com/mastodon/mastodon/releases/tag/v4.7.3
+  https://github.com/mastodon/mastodon/releases/tag/v4.7.4
   https://github.com/mastodon/mastodon/releases/tag/v$TARGET_VERSION
 EOF
+
+if [[ "$TARGET_VERSION" == "4.7.5" ]]; then
+  cat <<'EOF'
+For v4.7.5, rbenv deployments should have Ruby 4.0.9 installed before switching
+branches. Review the proxy header changes in dist/nginx.conf when deploying.
+See docs/UPGRADE_TO_V4.7.5.zh-CN.md for the upgrade from v4.7.3.
+EOF
+fi
 
 check_release_requirements
 (( PLAN_ONLY )) && exit 0
